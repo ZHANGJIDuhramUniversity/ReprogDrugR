@@ -8,6 +8,14 @@
 \description{
 Identifies drug candidates to reprogram senescent beta cells.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/ZHANGJIDuhramUniversity/ReprogDrugR}
+  \item Report bugs at \url{https://github.com/ZHANGJIDuhramUniversity/ReprogDrugR/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Ji Zhang \email{2742673684zj@gmail.com}
 

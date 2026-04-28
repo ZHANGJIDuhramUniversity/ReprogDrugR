@@ -23,8 +23,8 @@ build_signature <- function(deg_file,
   deg <- deg[abs(deg[[lfc_col]]) > lfc_cutoff, ]
 
   # 拆分上调和下调
-  upgenes <- deg$gene[deg[[lfc_col]] > 0]
-  downgenes <- deg$gene[deg[[lfc_col]] < 0]
+  upgenes <- deg$gene_symbol[deg[[lfc_col]] > 0]
+  downgenes <- deg$gene_symbol[deg[[lfc_col]] < 0]
 
   return(list(
     upgenes = upgenes,
