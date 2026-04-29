@@ -9,32 +9,18 @@
 query_cmap_reverse <- function(signature,
                                db = "lincs",
                                n_top = 100) {
+  # Check signature structure
+  if (!is.list(signature) || !all(c("upgenes", "downgenes") %in% names(signature))) {
+    stop("`signature` must be a list containing `upgenes` and `downgenes`.")
+  }
 
-  # 反转签名：升调变降调，降调变升调
+  # Reverse the signature: swap up and down genes to find harmful compounds
   reversed_signature <- list(
     upgenes = signature$downgenes,
     downgenes = signature$upgenes
   )
 
-  # 构建查询
-  qsig <- signatureSearch::qSig(
-    query = list(
-      upset = reversed_signature$upgenes,
-      downset = reversed_signature$downgenes
-    ),
-    gess_method = "LINCS",
-    refdb = db
-  )
-
-  # 查询数据库
-  result <- signatureSearch::gess_lincs(
-    qSig = qsig,
-    sortby = "NCS",
-    tau = TRUE
-  )
-
-  # 提取结果
-  result_df <- signatureSearch::result(result)
-
-  return(head(result_df, n_top))
+  # Reuse query_cmap() with reversed signature
+  # All input validation, gene ID conversion and error handling is handled there
+  query_cmap(reversed_signature, db = db, n_top = n_top)
 }
