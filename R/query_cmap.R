@@ -5,18 +5,11 @@
 #' @param n_top Number of top results to return (default 100)
 #' @param tau Logical, whether to compute tau score (default FALSE)
 #' @param workers Number of parallel workers for database query (default 1)
-#' @param add_annotations Logical, whether to add LINCS compound annotations (default TRUE)
+#' @param add_annotations Logical, whether to merge LINCS compound annotations (default TRUE)
 #'
-#' @return A dataframe of top drug candidates with scores and optional LINCS annotations
+#' @return A dataframe of top drug candidates with scores and LINCS annotations
 #' @export
-query_cmap <- function(
-    signature,
-    db = "lincs",
-    n_top = 100,
-    tau = FALSE,
-    workers = 1,
-    add_annotations = TRUE
-) {
+query_cmap <- function(signature, db = "lincs", n_top = 100, tau = FALSE, workers = 1, add_annotations = TRUE) {
 
   # Check signature structure
   if (!is.list(signature) || !all(c("upgenes", "downgenes") %in% names(signature))) {
@@ -29,17 +22,12 @@ query_cmap <- function(
   # Convert gene symbols to Entrez IDs if necessary
   .convert_genes <- function(genes) {
     if (length(genes) == 0) return(character(0))
-
     genes <- as.character(genes)
     genes <- unique(genes[!is.na(genes) & genes != ""])
-
     if (length(genes) == 0) return(character(0))
-
     is_numeric <- grepl("^[0-9]+$", genes)
     result <- genes
-
     symbols_to_convert <- genes[!is_numeric]
-
     if (length(symbols_to_convert) > 0) {
       converted <- as.character(AnnotationDbi::mapIds(
         org.Hs.eg.db::org.Hs.eg.db,
@@ -48,10 +36,8 @@ query_cmap <- function(
         keytype = "SYMBOL",
         multiVals = "first"
       ))
-
       result[!is_numeric] <- converted
     }
-
     result <- unique(result[!is.na(result) & result != ""])
     return(result)
   }
@@ -62,11 +48,9 @@ query_cmap <- function(
   if (length(up) == 0) {
     warning("No valid up-regulated genes after conversion.")
   }
-
   if (length(down) == 0) {
     warning("No valid down-regulated genes after conversion.")
   }
-
   if (length(up) == 0 && length(down) == 0) {
     stop("No valid genes after Entrez ID conversion. Please check gene symbols or Entrez IDs.")
   }
@@ -130,11 +114,8 @@ query_cmap <- function(
         }
 
         lincs_pert_info <- as.data.frame(lincs_pert_info)
-
-        # Remove duplicated compound names before merging
         lincs_pert_info <- lincs_pert_info[!duplicated(lincs_pert_info$pert_iname), ]
 
-        # Avoid duplicated column names before merge
         overlapping_cols <- intersect(
           colnames(result_df),
           setdiff(colnames(lincs_pert_info), "pert_iname")
@@ -142,8 +123,7 @@ query_cmap <- function(
 
         if (length(overlapping_cols) > 0) {
           lincs_pert_info <- lincs_pert_info[
-            ,
-            !colnames(lincs_pert_info) %in% overlapping_cols,
+            , !colnames(lincs_pert_info) %in% overlapping_cols,
             drop = FALSE
           ]
         }
