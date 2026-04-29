@@ -82,6 +82,10 @@ query_cmap <- function(signature, db = "lincs", n_top = 100, tau = FALSE, worker
   # Merge LINCS compound annotations
   lincs_pert_info <- NULL
   data("lincs_pert_info", package = "signatureSearchData", envir = environment())
+
+  # Deduplicate before merging
+  lincs_pert_info <- lincs_pert_info[!duplicated(lincs_pert_info$pert_iname), ]
+
   result_df <- merge(
     result_df,
     lincs_pert_info,
