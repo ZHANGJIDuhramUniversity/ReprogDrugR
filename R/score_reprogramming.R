@@ -1,10 +1,9 @@
 #' Score drug candidates for beta-cell reprogramming potential
 #'
-#' Domain-specific scoring system for beta-cell reprogramming drug screening,
-#' with integrated statistical validation via permutation testing and
-#' bootstrap confidence intervals. Designed as a generalizable framework:
-#' beta-cell reprogramming pathways are used as defaults, but any cell type
-#' can be supported via custom pathway dictionaries.
+#' Domain-specific scoring system for beta-cell reprogramming drug screening.
+#' Designed as a generalizable framework: beta-cell reprogramming pathways
+#' are used as defaults, but any cell type can be supported via custom
+#' pathway dictionaries.
 #'
 #' Two scoring modes are provided for sensitivity analysis:
 #' \itemize{
@@ -33,14 +32,8 @@
 #'   pathway dictionary.
 #' @param toxicity_blacklist Character vector of additional drug names to flag
 #'   as toxic (merged with built-in beta-cell toxicity list).
-#' @param perm Logical. Whether to run permutation test and bootstrap CI
-#'   (default TRUE). Set to FALSE for quick exploration on low-resource
-#'   machines.
-#' @param n_perm Integer. Number of permutations/bootstrap iterations
-#'   (default 1000 for publication quality; use 100 for quick testing).
-#' @param workers Integer. Number of parallel workers for permutation and
-#'   bootstrap computation (default 1). Increase on servers to speed up
-#'   computation (e.g., workers = 25). Requires BiocParallel.
+#' @param workers Integer. Number of parallel workers (default 1).
+#'   Increase on servers (e.g., workers = 25).
 #'
 #' @return A dataframe sorted by reprogramming_score (descending) with columns:
 #'   \itemize{
@@ -53,12 +46,6 @@
 #'     \item \code{matched_novel}: Names of matched novel pathways
 #'       (comprehensive only)
 #'     \item \code{reprogramming_score}: Final weighted score
-#'     \item \code{empirical_pval}: Permutation-based p-value (if perm = TRUE)
-#'     \item \code{empirical_fdr}: BH-corrected FDR (if perm = TRUE)
-#'     \item \code{score_ci_lower}: Bootstrap 95\% CI lower bound
-#'       (if perm = TRUE)
-#'     \item \code{score_ci_upper}: Bootstrap 95\% CI upper bound
-#'       (if perm = TRUE)
 #'     \item \code{is_toxic}: Logical, TRUE if on beta-cell toxicity blacklist
 #'     \item \code{scoring_mode}: Records which mode was used
 #'   }
@@ -66,26 +53,13 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Quick run without statistics (low-resource machines)
-#' results <- score_reprogramming(results_forward, perm = FALSE)
-#'
-#' # Full run, single core (default)
+#' # Conservative mode (main results)
 #' results_cons <- score_reprogramming(results_forward,
-#'                                     mode = "conservative",
-#'                                     n_perm = 1000,
-#'                                     workers = 1)
+#'                                     mode = "conservative")
 #'
-#' # Full run, parallel (servers)
-#' results_cons <- score_reprogramming(results_forward,
-#'                                     mode = "conservative",
-#'                                     n_perm = 1000,
-#'                                     workers = 25)
-#'
-#' # Comprehensive mode for sensitivity analysis
+#' # Comprehensive mode (sensitivity analysis)
 #' results_comp <- score_reprogramming(results_forward,
-#'                                     mode = "comprehensive",
-#'                                     n_perm = 1000,
-#'                                     workers = 25)
+#'                                     mode = "comprehensive")
 #'
 #' # Compare modes (Spearman correlation)
 #' compare_modes(results_cons, results_comp)
@@ -99,8 +73,6 @@ score_reprogramming <- function(forward_results,
                                 custom_validated_pathways = NULL,
                                 custom_novel_pathways     = NULL,
                                 toxicity_blacklist        = NULL,
-                                perm                      = TRUE,
-                                n_perm                    = 1000,
                                 workers                   = 1) {
 
   mode <- match.arg(mode)
@@ -112,8 +84,6 @@ score_reprogramming <- function(forward_results,
     stop("forward_results must contain an 'NCS' column")
   if (!is.numeric(workers) || workers < 1)
     stop("workers must be a positive integer")
-  if (!is.numeric(n_perm) || n_perm < 10)
-    stop("n_perm must be >= 10")
 
   results <- forward_results
 
@@ -135,19 +105,17 @@ score_reprogramming <- function(forward_results,
     stop(sprintf("Weights must sum to 1 (current sum: %.3f)", total_w))
 
   # ---------- 1. NCS score: min-max normalize to [0, 1] ----------
-  # Higher NCS = stronger transcriptional similarity to the reversal signature
   ncs_min   <- min(results$NCS, na.rm = TRUE)
   ncs_max   <- max(results$NCS, na.rm = TRUE)
   ncs_range <- ncs_max - ncs_min
   if (ncs_range == 0) {
-    results$score_ncs <- 0.5  # All identical: assign neutral score
+    results$score_ncs <- 0.5
   } else {
     results$score_ncs <- (results$NCS - ncs_min) / ncs_range
   }
 
   # ---------- 2. FDR significance score ----------
   # Converts WTCS_FDR to [0,1]: lower FDR = higher score
-  # -log10 transformation, capped at 1 (prevents dominance by extreme values)
   if ("WTCS_FDR" %in% colnames(results)) {
     results$score_fdr <- ifelse(
       is.na(results$WTCS_FDR),
@@ -164,8 +132,6 @@ score_reprogramming <- function(forward_results,
     0.25 * results$score_fdr
 
   # ---------- 4. Pathway keyword dictionaries ----------
-  # Default: beta-cell reprogramming pathways
-  # Override via custom_validated_pathways for other cell types
 
   # Conservative pool: 4 classical beta-cell reprogramming pathways
   conservative_pathways <- list(
@@ -220,7 +186,6 @@ score_reprogramming <- function(forward_results,
   }
 
   # ---------- 5. Pathway scoring helper ----------
-  # Counts how many pathways a drug's MOA matches.
   # Score: 0 (no hit), 0.5 (1 pathway), 1.0 (2+ pathways)
   score_pathway_fn <- function(moa_str, pathway_list) {
     if (is.na(moa_str) || moa_str == "")
@@ -247,13 +212,11 @@ score_reprogramming <- function(forward_results,
       results$matched_novel <- NA_character_
     }
   } else {
-    # Validated pathway scores
     val_res <- lapply(results[[moa_col[1]]],
                       score_pathway_fn, validated_pathways)
     results$score_pathway   <- sapply(val_res, `[[`, "score")
     results$matched_pathway <- sapply(val_res, `[[`, "matched")
 
-    # Novel pathway scores (comprehensive mode only)
     if (mode == "comprehensive") {
       nov_res <- lapply(results[[moa_col[1]]],
                         score_pathway_fn, novel_pathways)
@@ -274,77 +237,7 @@ score_reprogramming <- function(forward_results,
       weight_novel   * results$score_novel
   }
 
-  # ---------- 8. Statistical validation: Bootstrap CI ----------
-  # Assesses ranking stability by resampling drugs with replacement.
-  # 95% CI indicates how stable each drug's reprogramming score is.
-  # Wide CI = unstable ranking; narrow CI = robust candidate.
-  if (perm && length(moa_col) > 0) {
-
-    message(sprintf(
-      "Running bootstrap CI (n=%d, workers=%d)...",
-      n_perm, workers
-    ))
-
-    # Pre-extract vectors to avoid repeated dataframe access in loop
-    connectivity_vec <- results$score_connectivity
-    pathway_vec      <- results$score_pathway
-    if (mode == "comprehensive") {
-      novel_vec <- results$score_novel
-    }
-
-    # Bootstrap: resample drugs with replacement, recompute score each time
-    compute_boot_scores <- function(iter_idx) {
-      idx               <- sample(nrow(results), replace = TRUE)
-      boot_connectivity <- connectivity_vec[idx]
-      boot_pathway      <- pathway_vec[idx]
-
-      if (mode == "conservative") {
-        weight_ncs     * boot_connectivity +
-          weight_pathway * boot_pathway
-      } else {
-        boot_novel <- novel_vec[idx]
-        weight_ncs     * boot_connectivity +
-          weight_pathway * boot_pathway +
-          weight_novel   * boot_novel
-      }
-    }
-
-    # Run bootstrap (parallel or single core)
-    if (workers > 1) {
-      if (!requireNamespace("BiocParallel", quietly = TRUE))
-        stop("BiocParallel required for workers > 1.\n",
-             "Install: BiocManager::install('BiocParallel')")
-      BiocParallel::register(
-        BiocParallel::MulticoreParam(
-          workers     = workers,
-          progressbar = TRUE,
-          tasks       = n_perm
-        )
-      )
-      boot_mat <- do.call(cbind, BiocParallel::bplapply(
-        seq_len(n_perm), compute_boot_scores
-      ))
-    } else {
-      boot_mat <- replicate(n_perm, compute_boot_scores(1))
-    }
-
-    # 95% confidence interval from bootstrap distribution
-    results$score_ci_lower <- apply(boot_mat, 1, quantile,
-                                    probs = 0.025, na.rm = TRUE)
-    results$score_ci_upper <- apply(boot_mat, 1, quantile,
-                                    probs = 0.975, na.rm = TRUE)
-    results$score_ci_width <- results$score_ci_upper - results$score_ci_lower
-
-    message(sprintf(
-      "Bootstrap complete | Median CI width: %.4f",
-      median(results$score_ci_width, na.rm = TRUE)
-    ))
-
-  } else if (!perm) {
-    message("Bootstrap CI skipped (perm = FALSE)")
-  }
-
-  # ---------- 9. Beta-cell toxicity blacklist (fuzzy match) ----------
+  # ---------- 8. Beta-cell toxicity blacklist (fuzzy match) ----------
   default_toxicity <- c(
     "streptozotocin",  # selective beta-cell toxin (T1D model)
     "alloxan",         # selective beta-cell toxin
@@ -359,8 +252,7 @@ score_reprogramming <- function(forward_results,
 
   drug_col <- intersect(c("pert_iname", "pert", "name"), colnames(results))
   if (length(drug_col) > 0) {
-    drug_names    <- tolower(results[[drug_col[1]]])
-    # Fuzzy match: catches "brefeldin-a", "brefeldin A", etc.
+    drug_names   <- tolower(results[[drug_col[1]]])
     results$is_toxic <- sapply(drug_names, function(x) {
       any(sapply(all_toxicity, function(tox) grepl(tox, x, fixed = TRUE)))
     })
@@ -368,7 +260,7 @@ score_reprogramming <- function(forward_results,
     results$is_toxic <- FALSE
   }
 
-  # ---------- 10. Sort and report ----------
+  # ---------- 9. Sort and report ----------
   results$scoring_mode <- mode
   results <- results[order(results$reprogramming_score, decreasing = TRUE), ]
 
@@ -413,7 +305,6 @@ score_reprogramming <- function(forward_results,
 #' }
 compare_modes <- function(results_cons, results_comp, top_n = 20) {
 
-  # Input checks
   for (col in c("pert_iname", "reprogramming_score")) {
     if (!col %in% colnames(results_cons))
       stop(sprintf("results_cons missing column: %s", col))
@@ -421,7 +312,6 @@ compare_modes <- function(results_cons, results_comp, top_n = 20) {
       stop(sprintf("results_comp missing column: %s", col))
   }
 
-  # Align by drug name
   common_drugs <- intersect(results_cons$pert_iname,
                             results_comp$pert_iname)
   if (length(common_drugs) == 0)
@@ -432,15 +322,12 @@ compare_modes <- function(results_cons, results_comp, top_n = 20) {
   comp_scores <- results_comp$reprogramming_score[
     match(common_drugs, results_comp$pert_iname)]
 
-  # Spearman correlation on full ranking
   sp <- stats::cor.test(cons_scores, comp_scores, method = "spearman")
 
-  # Top-N overlap
   top_cons <- head(results_cons$pert_iname, top_n)
   top_comp <- head(results_comp$pert_iname, top_n)
-  overlap   <- intersect(top_cons, top_comp)
+  overlap  <- intersect(top_cons, top_comp)
 
-  # Report
   message("=== Mode Comparison (Spearman Rank Correlation) ===")
   message(sprintf("  rho = %.3f,  p-value = %.4f", sp$estimate, sp$p.value))
   message(sprintf("  Top-%d overlap: %d / %d", top_n, length(overlap), top_n))
