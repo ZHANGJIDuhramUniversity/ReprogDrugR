@@ -10,14 +10,13 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:
     AnnotationDbi,
-    BiocParallel,
     ggplot2,
     org.Hs.eg.db,
     signatureSearch,
     stats,
     utils
-URL: https://github.com/ZHANGJIDuhramUniversity/ReprogDrugR
-BugReports: https://github.com/ZHANGJIDuhramUniversity/ReprogDrugR/issues
+URL: https://github.com/ZHANGJIDurhamUniversity/ReprogDrugR
+BugReports: https://github.com/ZHANGJIDurhamUniversity/ReprogDrugR/issues
 Depends: 
     R (>= 3.5)
 LazyData: true
